@@ -166,7 +166,7 @@ namespace GraphDemo.GUI
 
         public ViewModel()
         {
-            GoogleSigned.AssignAllServices(new GoogleSigned("AIzaSyBBn-zroiSmFlStmyBnhojNQ1zC6b1RC24"));
+            GoogleSigned.AssignAllServices(new GoogleSigned(Environment.GetEnvironmentVariable("GoogleApiKey")));
             driver = GraphDatabase.Driver("bolt://localhost", AuthTokens.Basic("neo4j", "123456"));
             Times = Enumerable.Range(0, 24).Select(i => i.ToString("00")).ToArray();
             Zoom = 8;
@@ -205,7 +205,7 @@ MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOC
       (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
 WHERE s1.id = {{selectedSource}} AND 
       s2.id = {{selectedTarget}} AND 
-      st1.arrival_time STARTS WITH {{selectedTime}}
+      st1.arrival_time.hour = {{selectedTime}} AND 
 RETURN [a, r, t, s1, st1, s2, st2] as nodes";
 
                 var notDirect1Query = $@"
@@ -213,8 +213,8 @@ MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOC
       (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
 WHERE s1.id = {{selectedSource}} AND 
       s3.id = {{selectedTarget}} AND 
-      st1.arrival_time STARTS WITH {{selectedTime}} AND 
-      substring(st2.arrival_time, 0, 2) = substring(st3.arrival_time, 0, 2) AND 
+      st1.arrival_time.hour = {{selectedTime}} AND 
+      duration.between(st2.arrival_time, st3.arrival_time) < duration({{minutes:30}}) AND 
       st2.arrival_time < st3.arrival_time
 RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes";
 
@@ -225,11 +225,11 @@ MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOC
 WHERE s1.id = {{selectedSource}} AND 
       s4.id = {{selectedTarget}} AND 
       distance(s2.location, s3.location) < 500 AND
-      st1.arrival_time STARTS WITH {{selectedTime}} AND 
-      substring(st2.arrival_time, 0, 2) = substring(st3.arrival_time, 0, 2) AND 
+      st1.arrival_time.hour = {{selectedTime}} AND 
+      duration.between(st2.arrival_time, st3.arrival_time) < duration({{minutes:30}}) AND 
       st2.arrival_time < st3.arrival_time
 RETURN [a, r, t, s1, st1, s2, st2, s3, st3, s4, st4] as nodes
-ORDER BY duration.between(localtime(st1.arrival_time), localtime(st4.arrival_time))";
+ORDER BY duration.between(st1.arrival_time, st4.arrival_time)";
 
                 var parameters = new Dictionary<string, object>()
                 {
