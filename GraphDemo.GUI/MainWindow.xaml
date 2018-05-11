@@ -15,6 +15,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
@@ -29,5 +30,9 @@
         <ListBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding TargetStops}" SelectedItem="{Binding SelectedTarget}" Margin="2" DisplayMemberPath="Name"/>
 
         <ListBox Grid.Column="2" Grid.Row="1" ItemsSource="{Binding Plan}" Margin="2"/>
+
+        <Canvas Grid.Row="2" Grid.ColumnSpan="3">
+            <Image MaxHeight="500" Source="{Binding MapUri}"/>
+        </Canvas>
     </Grid>
 </Window>
