@@ -164,28 +164,6 @@ namespace GraphDemo.GUI
 
         public LatLng CenterGeoCoordinate { get; set; }
 
-        public System.Windows.Point ScreenCenterPixelXY
-        {
-            get
-            {
-                return LatLongToPixelXY(CenterGeoCoordinate, Zoom);
-            }
-        }
-
-        private Vector[] markers;
-
-        public Vector[] Markers
-        {
-            get { return markers; }
-            set
-            {
-                markers = value;
-                OnPropertyChanged();
-            }
-        }
-
-
-
         public ViewModel()
         {
             GoogleSigned.AssignAllServices(new GoogleSigned("AIzaSyBBn-zroiSmFlStmyBnhojNQ1zC6b1RC24"));
@@ -225,14 +203,32 @@ RETURN s").Select(r =>
                 var directQuery = $@"
 MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop),
       (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
-WHERE s1.id = {{selectedSource}} AND s2.id = {{selectedTarget}} AND st1.arrival_time STARTS WITH {{selectedTime}}
+WHERE s1.id = {{selectedSource}} AND 
+      s2.id = {{selectedTarget}} AND 
+      st1.arrival_time STARTS WITH {{selectedTime}}
 RETURN [a, r, t, s1, st1, s2, st2] as nodes";
 
-                var notDirectQuery = $@"
+                var notDirect1Query = $@"
 MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s3:Stop), 
       (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
-WHERE s1.id = {{selectedSource}} AND s3.id = {{selectedTarget}} AND st1.arrival_time STARTS WITH {{selectedTime}} AND substring(st2.arrival_time, 0, 2) = substring(st3.arrival_time, 0, 2) AND st2.arrival_time < st3.arrival_time
+WHERE s1.id = {{selectedSource}} AND 
+      s3.id = {{selectedTarget}} AND 
+      st1.arrival_time STARTS WITH {{selectedTime}} AND 
+      substring(st2.arrival_time, 0, 2) = substring(st3.arrival_time, 0, 2) AND 
+      st2.arrival_time < st3.arrival_time
 RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes";
+
+                var notDirect2Query = $@"
+MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop), 
+      (s3:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s4:Stop), 
+      (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
+WHERE s1.id = {{selectedSource}} AND 
+      s4.id = {{selectedTarget}} AND 
+      distance(s2.location, s3.location) < 500 AND
+      st1.arrival_time STARTS WITH {{selectedTime}} AND 
+      substring(st2.arrival_time, 0, 2) = substring(st3.arrival_time, 0, 2) AND 
+      st2.arrival_time < st3.arrival_time
+RETURN [a, r, t, s1, st1, s2, st2, s3, st3, s4, st4] as nodes";
 
                 var parameters = new Dictionary<string, object>()
                 {
@@ -241,7 +237,10 @@ RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes";
                     [nameof(selectedTime)] = selectedTime
                 };
 
-                Plan = RunQuery(session, directQuery, parameters) ?? RunQuery(session, notDirectQuery, parameters);
+                Plan = 
+                    RunQuery(session, directQuery, parameters) ?? 
+                    RunQuery(session, notDirect1Query, parameters) ??
+                    RunQuery(session, notDirect2Query, parameters);
             }
         }
 
@@ -267,7 +266,7 @@ RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes";
                 .FirstOrDefault();
 
             if (markers != null)
-                UpdateMap(markers[0], markers);
+                UpdateMap(markers);
 
             return plan;
         }
@@ -291,138 +290,29 @@ RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes";
             }
         }
 
-        private void UpdateMap(LatLng location, LatLng[] locations)
+        private void UpdateMap(LatLng[] locations)
         {
-            CenterGeoCoordinate = location;
+            CenterGeoCoordinate = 
+                new LatLng(locations.Select(l => l.Latitude).Average(), 
+                           locations.Select(l => l.Longitude).Average());
 
             var map = new StaticMapRequest
             {
                 Language = "he-IL",
-                Center = location,
+                Center = CenterGeoCoordinate,
                 Size = new MapSize(400, 400),
                 Zoom = Zoom,
                 Path = new Path()
             };
 
-            var markers = new Vector[locations.Length];
             for (int i = 0; i < locations.Length; i++)
             {
                 LatLng point = locations[i];
-                markers[i] = ConvertGeoCoordinateToScreenPosition(point);
                 map.Path.Points.Add(point);
                 map.Markers.Add(point);
             }
 
-            Markers = markers;
-
             MapUri = map.ToUri().ToString();
-        }
-
-        private List<LatLng> DecodePolylinePoints(string encodedPoints)
-        {
-            if (string.IsNullOrEmpty(encodedPoints)) return null;
-            var poly = new List<LatLng>();
-            char[] polylinechars = encodedPoints.ToCharArray();
-            int index = 0;
-
-            int currentLat = 0;
-            int currentLng = 0;
-            int next5bits;
-            int sum;
-            int shifter;
-
-            try
-            {
-                while (index < polylinechars.Length)
-                {
-                    // calculate next latitude
-                    sum = 0;
-                    shifter = 0;
-                    do
-                    {
-                        next5bits = polylinechars[index++] - 63;
-                        sum |= (next5bits & 31) << shifter;
-                        shifter += 5;
-                    } while (next5bits >= 32 && index < polylinechars.Length);
-
-                    if (index >= polylinechars.Length)
-                        break;
-
-                    currentLat += (sum & 1) == 1 ? ~(sum >> 1) : (sum >> 1);
-
-                    //calculate next longitude
-                    sum = 0;
-                    shifter = 0;
-                    do
-                    {
-                        next5bits = polylinechars[index++] - 63;
-                        sum |= (next5bits & 31) << shifter;
-                        shifter += 5;
-                    } while (next5bits >= 32 && index < polylinechars.Length);
-
-                    if (index >= polylinechars.Length && next5bits >= 32)
-                        break;
-
-                    currentLng += (sum & 1) == 1 ? ~(sum >> 1) : (sum >> 1);
-                    var p = new LatLng(Convert.ToDouble(currentLat) / 100000.0, Convert.ToDouble(currentLng) / 100000.0);
-                    poly.Add(p);
-                }
-            }
-            catch (Exception)
-            {
-            }
-            return poly;
-        }
-
-        public Vector ConvertGeoCoordinateToScreenPosition(LatLng location)
-        {
-            System.Windows.Point locationPixelXY = LatLongToPixelXY(location, Zoom);
-
-            Vector pixelXYCenterToLocationScaled = (locationPixelXY - ScreenCenterPixelXY);
-
-            return pixelXYCenterToLocationScaled + new Vector(250, 250);
-        }
-
-        public static System.Windows.Point LatLongToPixelXY(double latitude, double longitude, int levelOfDetail)
-        {
-            if (latitude < MinLatitude || latitude > MaxLatitude)
-            {
-                throw new ArgumentOutOfRangeException("latitude");
-            }
-
-            if (longitude < MinLongitude || longitude > MaxLongitude)
-            {
-                throw new ArgumentOutOfRangeException("longitude");
-            }
-
-            double x = (longitude + 180.0) / 360.0;
-            double sinLatitude = Math.Sin(latitude * Math.PI / 180.0);
-            double y = 0.5 - Math.Log((1.0 + sinLatitude) / (1.0 - sinLatitude)) / (4.0 * Math.PI);
-
-            double mapSize = MapSize(levelOfDetail);
-            double pixelX = Clip(x * mapSize + 0.5, 0.0, mapSize - 1);
-            double pixelY = Clip(y * mapSize + 0.5, 0.0, mapSize - 1);
-
-            return new System.Windows.Point(pixelX, pixelY);
-        }
-
-        public static System.Windows.Point LatLongToPixelXY(LatLng geoCoordinate, int levelOfDetail)
-        {
-            return LatLongToPixelXY(geoCoordinate.Latitude, geoCoordinate.Longitude, levelOfDetail);
-        }
-
-        public static double Clip(double n, double minValue, double maxValue)
-        {
-            while (n < minValue)
-            {
-                n += maxValue - minValue;
-            }
-            return (n + Math.Abs(minValue)) % (Math.Abs(minValue) + Math.Abs(maxValue)) - Math.Abs(minValue);
-        }
-
-        public static double MapSize(double levelOfDetail)
-        {
-            return 256.0 * Math.Pow(2.0, levelOfDetail);
         }
     }
 }
