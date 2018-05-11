@@ -228,7 +228,8 @@ WHERE s1.id = {{selectedSource}} AND
       st1.arrival_time STARTS WITH {{selectedTime}} AND 
       substring(st2.arrival_time, 0, 2) = substring(st3.arrival_time, 0, 2) AND 
       st2.arrival_time < st3.arrival_time
-RETURN [a, r, t, s1, st1, s2, st2, s3, st3, s4, st4] as nodes";
+RETURN [a, r, t, s1, st1, s2, st2, s3, st3, s4, st4] as nodes
+ORDER BY duration.between(localtime(st1.arrival_time), localtime(st4.arrival_time))";
 
                 var parameters = new Dictionary<string, object>()
                 {
@@ -246,7 +247,7 @@ RETURN [a, r, t, s1, st1, s2, st2, s3, st3, s4, st4] as nodes";
 
         private string[] RunQuery(ISession session, string query, Dictionary<string, object> parameters)
         {
-            var result = session.Run(query, parameters);
+            var result = session.Run(query, parameters).ToArray();
             var plan = result
                 .Select(r =>
                     r["nodes"]
@@ -305,9 +306,8 @@ RETURN [a, r, t, s1, st1, s2, st2, s3, st3, s4, st4] as nodes";
                 Path = new Path()
             };
 
-            for (int i = 0; i < locations.Length; i++)
+            foreach (var point in locations)
             {
-                LatLng point = locations[i];
                 map.Path.Points.Add(point);
                 map.Markers.Add(point);
             }
