@@ -76,7 +76,7 @@ namespace GraphDemo
 
             Save("stop_times.txt",
                  "MATCH (t:Trip {id: {trip_id}}), (s:Stop {id: {stop_id}}) CREATE (t)<-[:PART_OF_TRIP]-(st:Stoptime {arrival_time: localtime({arrival_time}), departure_time: localtime({departure_time}), stop_sequence: toInteger({stop_sequence}), pickup_type: {pickup_type}, drop_off_type: {drop_off_type}, shape_dist_traveled: {shape_dist_traveled}})-[:LOCATED_AT]->(s)",
-                 5000,
+                 10000,
                  new Property("trip_id"), 
                  new Property("arrival_time", selector: FormatTime), 
                  new Property("departure_time", selector: FormatTime), 
@@ -88,7 +88,7 @@ namespace GraphDemo
 
             Save("trips.txt",
                  "MATCH (s1:Stoptime)-[:PART_OF_TRIP]->(t:Trip), (s2:Stoptime)-[:PART_OF_TRIP]->(t) WHERE t.id={trip_id} AND s2.stop_sequence=s1.stop_sequence+1 CREATE (s1)-[:PRECEDES]->(s2)",
-                 1000,
+                 100,
                  new Property("trip_id"));
         }
 

@@ -205,31 +205,34 @@ MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOC
       (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
 WHERE s1.id = {{selectedSource}} AND 
       s2.id = {{selectedTarget}} AND 
-      st1.arrival_time.hour = {{selectedTime}} AND 
-RETURN [a, r, t, s1, st1, s2, st2] as nodes";
+      st1.arrival_time.hour = toInteger({{selectedTime}}) 
+RETURN [a, r, t, s1, st1, s2, st2] as nodes
+LIMIT 1";
 
                 var notDirect1Query = $@"
 MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s3:Stop), 
       (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
 WHERE s1.id = {{selectedSource}} AND 
       s3.id = {{selectedTarget}} AND 
-      st1.arrival_time.hour = {{selectedTime}} AND 
-      duration.between(st2.arrival_time, st3.arrival_time) < duration({{minutes:30}}) AND 
+      st1.arrival_time.hour = toInteger({{selectedTime}}) AND 
+      duration.inSeconds(st2.arrival_time, st3.arrival_time).seconds < 30* 60 AND 
       st2.arrival_time < st3.arrival_time
-RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes";
+RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes
+LIMIT 1";
 
                 var notDirect2Query = $@"
 MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop), 
       (s3:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s4:Stop), 
-      (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
+      (st1)-[:PART_OF_TRIP]->(t1:Trip)-[:USES]->(r1:Route)<-[:OPERATES]-(a1:Agency),
+      (st3)-[:PART_OF_TRIP]->(t2:Trip)-[:USES]->(r2:Route)<-[:OPERATES]-(a2:Agency)
 WHERE s1.id = {{selectedSource}} AND 
       s4.id = {{selectedTarget}} AND 
       distance(s2.location, s3.location) < 500 AND
-      st1.arrival_time.hour = {{selectedTime}} AND 
-      duration.between(st2.arrival_time, st3.arrival_time) < duration({{minutes:30}}) AND 
+      st1.arrival_time.hour = toInteger({{selectedTime}}) AND 
+      duration.inSeconds(st2.arrival_time, st3.arrival_time).seconds < 30*60 AND 
       st2.arrival_time < st3.arrival_time
-RETURN [a, r, t, s1, st1, s2, st2, s3, st3, s4, st4] as nodes
-ORDER BY duration.between(st1.arrival_time, st4.arrival_time)";
+RETURN [a1, r1, t1, s1, st1, s2, st2, a2, r2, t2, s3, st3, s4, st4] as nodes
+LIMIT 1";
 
                 var parameters = new Dictionary<string, object>()
                 {
