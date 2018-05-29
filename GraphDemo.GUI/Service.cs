@@ -40,6 +40,7 @@ RETURN s").Select(r =>
 
             using (var session = driver.Session())
             {
+                // 🚏 -> 🚍 -> 🚏
                 var directQuery = $@"
 MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop),
       (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
@@ -49,6 +50,7 @@ WHERE s1.id = {{source}} AND
 RETURN [a, r, t, s1, st1, s2, st2] as nodes
 LIMIT 1";
 
+                // 🚏 -> 🚍 -> 🚏 -> 🚍 -> 🚏
                 var notDirect1Query = $@"
 MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s3:Stop), 
       (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
@@ -60,8 +62,7 @@ WHERE s1.id = {{source}} AND
 RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes
 LIMIT 1";
 
-                // 
-
+                // 🚏 -> 🚍 -> 🚏 -> 🚶 -> 🚏 -> 🚍 -> 🚏
                 var notDirect2Query = $@"
 MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop), 
       (s3:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s4:Stop), 
