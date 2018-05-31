@@ -12,6 +12,44 @@ namespace GraphDemo.GUI
     {
         static IDriver driver = GraphDatabase.Driver("bolt://localhost", AuthTokens.Basic("neo4j", "123456"));
 
+        // 🚏 -> 🚍 -> 🚏
+        private const string DirectQuery = @"
+MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop),
+      (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
+WHERE s1.id = {source} AND 
+      s2.id = {target} AND 
+      st1.arrival_time.hour = toInteger({time}) 
+RETURN [a, r, t, s1, st1, s2, st2] as nodes
+LIMIT 1";
+
+        // 🚏 -> 🚍 -> 🚏 -> 🚍 -> 🚏
+        private const string OneSwitchNoWalkingQuery = @"
+MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s3:Stop), 
+      (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency),
+      (st3)-[:PART_OF_TRIP]->(t2:Trip)-[:USES]->(r2:Route)<-[:OPERATES]-(a2:Agency)
+WHERE s1.id = {source} AND 
+      s3.id = {target} AND 
+      st1.arrival_time.hour = toInteger({time}) AND 
+      duration.inSeconds(st2.arrival_time, st3.arrival_time).seconds < 30*60 AND 
+      st2.arrival_time < st3.arrival_time
+RETURN [a, r, t, s1, st1, s2, st2, a2, r2, t2, s2, st3, s3, st4] as nodes
+LIMIT 1";
+
+        // 🚏 -> 🚍 -> 🚏 -> 🚶 -> 🚏 -> 🚍 -> 🚏
+        private const string OneSwitchLessThen500MetersQuery = @"
+MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop), 
+      (s3:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s4:Stop), 
+      (st1)-[:PART_OF_TRIP]->(t1:Trip)-[:USES]->(r1:Route)<-[:OPERATES]-(a1:Agency),
+      (st3)-[:PART_OF_TRIP]->(t2:Trip)-[:USES]->(r2:Route)<-[:OPERATES]-(a2:Agency)
+WHERE s1.id = {source} AND 
+      s4.id = {target} AND 
+      distance(s2.location, s3.location) < 500 AND
+      st1.arrival_time.hour = toInteger({time}) AND 
+      duration.inSeconds(st2.arrival_time, st3.arrival_time).seconds < 30*60 AND 
+      st2.arrival_time < st3.arrival_time
+RETURN [a1, r1, t1, s1, st1, s2, st2, a2, r2, t2, s3, st3, s4, st4] as nodes
+LIMIT 1";
+
         public static Stop[] GetStops(string desc)
         {
             var condition = string.Join("AND ", desc.Split(' ').Select(w => $"s.desc CONTAINS '{w}'"));
@@ -33,50 +71,13 @@ RETURN s").Select(r =>
             }
         }
 
-        public static Response CreatePlan(string source, string target, string time)
+        public static async Task<Response> CreatePlanAsync(string source, string target, string time, PlanType planType)
         {
             if (source == null || target == null || time == null)
                 return null;
 
             using (var session = driver.Session())
             {
-                // 🚏 -> 🚍 -> 🚏
-                var directQuery = $@"
-MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop),
-      (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
-WHERE s1.id = {{source}} AND 
-      s2.id = {{target}} AND 
-      st1.arrival_time.hour = toInteger({{time}}) 
-RETURN [a, r, t, s1, st1, s2, st2] as nodes
-LIMIT 1";
-
-                // 🚏 -> 🚍 -> 🚏 -> 🚍 -> 🚏
-                var notDirect1Query = $@"
-MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s3:Stop), 
-      (st1)-[:PART_OF_TRIP]->(t:Trip)-[:USES]->(r:Route)<-[:OPERATES]-(a:Agency)
-WHERE s1.id = {{source}} AND 
-      s3.id = {{target}} AND 
-      st1.arrival_time.hour = toInteger({{time}}) AND 
-      duration.inSeconds(st2.arrival_time, st3.arrival_time).seconds < 30* 60 AND 
-      st2.arrival_time < st3.arrival_time
-RETURN [a, r, t, s1, st1, s2, st2, s2, st3, s3, st4] as nodes
-LIMIT 1";
-
-                // 🚏 -> 🚍 -> 🚏 -> 🚶 -> 🚏 -> 🚍 -> 🚏
-                var notDirect2Query = $@"
-MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop), 
-      (s3:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s4:Stop), 
-      (st1)-[:PART_OF_TRIP]->(t1:Trip)-[:USES]->(r1:Route)<-[:OPERATES]-(a1:Agency),
-      (st3)-[:PART_OF_TRIP]->(t2:Trip)-[:USES]->(r2:Route)<-[:OPERATES]-(a2:Agency)
-WHERE s1.id = {{source}} AND 
-      s4.id = {{target}} AND 
-      distance(s2.location, s3.location) < 500 AND
-      st1.arrival_time.hour = toInteger({{time}}) AND 
-      duration.inSeconds(st2.arrival_time, st3.arrival_time).seconds < 30*60 AND 
-      st2.arrival_time < st3.arrival_time
-RETURN [a1, r1, t1, s1, st1, s2, st2, a2, r2, t2, s3, st3, s4, st4] as nodes
-LIMIT 1";
-
                 var parameters = new Dictionary<string, object>()
                 {
                     [nameof(source)] = source,
@@ -84,22 +85,20 @@ LIMIT 1";
                     [nameof(time)] = time
                 };
 
-                return
-                    RunQuery(session, directQuery, parameters) ??
-                    RunQuery(session, notDirect1Query, parameters) ??
-                    RunQuery(session, notDirect2Query, parameters);
+                return await RunQueryAsync(session, planType, parameters);
             }
         }
 
-        private static Response RunQuery(ISession session, string query, Dictionary<string, object> parameters)
+        private static async Task<Response> RunQueryAsync(ISession session, PlanType planType, Dictionary<string, object> parameters)
         {
-            var result = session.Run(query, parameters).ToArray();
+            var query = GetQuery(planType);
+            var result = await (await session.RunAsync(query, parameters)).ToListAsync();
             var plan = result
                 .Select(r =>
                     r["nodes"]
                         .As<List<INode>>()
                         .Select(n => FormatNode(n))
-                        .ToArray())
+                        .ToList())
                 .FirstOrDefault();
 
             var markers = result
@@ -112,7 +111,27 @@ LIMIT 1";
                         .ToArray())
                 .FirstOrDefault();
 
-            return new Response(plan, markers);
+            if (plan == null)
+                return null;
+
+            FormatPlan(plan, planType);
+
+            return new Response(plan.ToArray(), markers);
+        }
+
+        private static string GetQuery(PlanType planType)
+        {
+            switch (planType)
+            {
+                case PlanType.Direct:
+                    return DirectQuery;
+                case PlanType.OneSwitchNoWalking:
+                    return OneSwitchNoWalkingQuery;
+                case PlanType.OneSwitchLessThen500Meters:
+                    return OneSwitchLessThen500MetersQuery;
+                default:
+                    throw new NotImplementedException();
+            }
         }
 
         private static string FormatNode(INode n)
@@ -120,7 +139,7 @@ LIMIT 1";
             switch (n.Labels[0])
             {
                 case "Stop":
-                    return "תחנה " + n.Properties["name"].ToString();
+                    return "תחנת " + n.Properties["name"].ToString();
                 case "Stoptime":
                     return "מגיע ב " + n.Properties["arrival_time"].ToString();
                 case "Trip":
@@ -134,5 +153,30 @@ LIMIT 1";
             }
         }
 
+        private static void FormatPlan(List<string> plan, PlanType planType)
+        {
+            switch (planType)
+            {
+                case PlanType.Direct:
+                    plan.Insert(3, "עלה ב");
+                    plan.Insert(6, "רד ב");
+                    break;
+                case PlanType.OneSwitchNoWalking:
+                    plan.Insert(3, "עלה ב");
+                    plan.Insert(6, "רד ב");
+                    plan.Insert(12, "עלה ב");
+                    plan.Insert(15, "רד ב");
+                    break;
+                case PlanType.OneSwitchLessThen500Meters:
+                    plan.Insert(3, "עלה ב");
+                    plan.Insert(6, "רד ב");
+                    plan.Insert(9, "לך אל");
+                    plan.Insert(13, "עלה ב");
+                    plan.Insert(16, "רד ב");
+                    break;
+                default:
+                    throw new NotImplementedException();
+            }
+        }
     }
 }

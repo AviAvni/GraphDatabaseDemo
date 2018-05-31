@@ -4,6 +4,7 @@ using System;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace GraphDemo.GUI
 {
@@ -70,9 +71,7 @@ namespace GraphDemo.GUI
             set
             {
                 selectedSource = value;
-                var response = Service.CreatePlan(selectedSource.Id, selectedTarget.Id, selectedTime);
-                Plan = response.Plan;
-                UpdateMap(response.Markers);
+                var _ = UpdatePlanAsync();
             }
         }
 
@@ -84,9 +83,27 @@ namespace GraphDemo.GUI
             set
             {
                 selectedTarget = value;
-                var response = Service.CreatePlan(selectedSource.Id, selectedTarget.Id, selectedTime);
-                Plan = response.Plan;
-                UpdateMap(response.Markers);
+                var _ = UpdatePlanAsync();
+            }
+        }
+
+        private PlanType[] planTypes;
+
+        public PlanType[] PlanTypes
+        {
+            get { return planTypes; }
+            set { planTypes = value; }
+        }
+
+        private PlanType selectedPlanType;
+
+        public PlanType SelectedPlanType
+        {
+            get { return selectedPlanType; }
+            set
+            {
+                selectedPlanType = value;
+                var _ = UpdatePlanAsync();
             }
         }
 
@@ -122,9 +139,7 @@ namespace GraphDemo.GUI
             set
             {
                 selectedTime = value;
-                var response = Service.CreatePlan(selectedSource.Id, selectedTarget.Id, selectedTime);
-                Plan = response.Plan;
-                UpdateMap(response.Markers);
+                var _ = UpdatePlanAsync();
             }
         }
 
@@ -160,6 +175,14 @@ namespace GraphDemo.GUI
             GoogleSigned.AssignAllServices(new GoogleSigned(Environment.GetEnvironmentVariable("GoogleApiKey")));
             Times = Enumerable.Range(0, 24).Select(i => i.ToString("00")).ToArray();
             Zoom = 8;
+            PlanTypes = new[] { PlanType.Direct, PlanType.OneSwitchNoWalking, PlanType.OneSwitchLessThen500Meters };
+        }
+
+        private async Task UpdatePlanAsync()
+        {
+            var response = await Service.CreatePlanAsync(selectedSource?.Id, selectedTarget?.Id, selectedTime, selectedPlanType);
+            Plan = response?.Plan;
+            UpdateMap(response?.Markers);
         }
 
         private void UpdateMap(LatLng[] locations)
@@ -168,8 +191,8 @@ namespace GraphDemo.GUI
                 return;
 
             CenterGeoCoordinate =
-            new LatLng(locations.Select(l => l.Latitude).Average(),
-                       locations.Select(l => l.Longitude).Average());
+                new LatLng(locations.Select(l => l.Latitude).Average(),
+                           locations.Select(l => l.Longitude).Average());
 
             var map = new StaticMapRequest
             {

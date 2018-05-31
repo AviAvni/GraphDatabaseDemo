@@ -18,18 +18,20 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="2*"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <TextBox Text="{Binding Source}" Margin="2"/>
         <TextBox Grid.Column="1" Text="{Binding Target}" Margin="2"/>
         <ComboBox Grid.Column="2" ItemsSource="{Binding Times}" SelectedItem="{Binding SelectedTime}"/>
+        <ComboBox Grid.Column="3" ItemsSource="{Binding PlanTypes}" SelectedItem="{Binding SelectedPlanType}"/>
 
         <ListBox Grid.Row="1" ItemsSource="{Binding SourceStops}" SelectedItem="{Binding SelectedSource}" Margin="2" DisplayMemberPath="Name"/>
         <ListBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding TargetStops}" SelectedItem="{Binding SelectedTarget}" Margin="2" DisplayMemberPath="Name"/>
 
-        <ListBox Grid.Column="2" Grid.Row="1" ItemsSource="{Binding Plan}" Margin="2"/>
+        <ListBox Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="1" ItemsSource="{Binding Plan}" Margin="2"/>
 
         <Image Grid.Row="2" Grid.Column="1" Source="{Binding MapUri}"/>
     </Grid>
