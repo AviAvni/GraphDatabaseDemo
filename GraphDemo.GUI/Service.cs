@@ -36,29 +36,44 @@ RETURN [a, r, t, s1, st1, s2, st2, a2, r2, t2, s2, st3, s3, st4] as nodes
 LIMIT 1";
 
         // 🚏 -> 🚍 -> 🚏 -> 🚶 -> 🚏 -> 🚍 -> 🚏
-        private const string OneSwitchLessThen500MetersQuery = @"
+        private const string OneSwitchLessThen100MetersQuery = @"
 MATCH (s1:Stop)<-[:LOCATED_AT]-(st1:Stoptime)-[:PRECEDES*]->(st2:Stoptime)-[:LOCATED_AT]->(s2:Stop), 
       (s3:Stop)<-[:LOCATED_AT]-(st3:Stoptime)-[:PRECEDES*]->(st4:Stoptime)-[:LOCATED_AT]->(s4:Stop), 
       (st1)-[:PART_OF_TRIP]->(t1:Trip)-[:USES]->(r1:Route)<-[:OPERATES]-(a1:Agency),
       (st3)-[:PART_OF_TRIP]->(t2:Trip)-[:USES]->(r2:Route)<-[:OPERATES]-(a2:Agency)
 WHERE s1.id = {source} AND 
       s4.id = {target} AND 
-      distance(s2.location, s3.location) < 500 AND
+      distance(s2.location, s3.location) < 100 AND
       st1.arrival_time.hour = toInteger({time}) AND 
       duration.inSeconds(st2.arrival_time, st3.arrival_time).seconds < 30*60 AND 
       st2.arrival_time < st3.arrival_time
 RETURN [a1, r1, t1, s1, st1, s2, st2, a2, r2, t2, s3, st3, s4, st4] as nodes
 LIMIT 1";
 
-        public static Stop[] GetStops(string desc)
+        public static Stop[] GetStops(string city, string street, bool isTrain)
         {
-            var condition = string.Join("AND ", desc.Split(' ').Select(w => $"s.desc CONTAINS '{w}'"));
+            var conditions = new List<string>();
+            if(!string.IsNullOrEmpty(city))
+            {
+                conditions.Add($"s.desc CONTAINS 'עיר: {city}'");
+            }
+            if (isTrain)
+            {
+                conditions.Add($"s.desc CONTAINS 'רכבת'");
+            }
+            if (!string.IsNullOrEmpty(street))
+            {
+                conditions.Add($"s.desc CONTAINS 'רחוב:{street}'");
+            }
+
             using (var session = driver.Session())
             {
-                return session.Run($@"
+                var query = $@"
 MATCH (s:Stop) 
-WHERE {condition}
-RETURN s").Select(r =>
+WHERE {string.Join(" AND ", conditions)}
+RETURN s
+ORDER BY s.name";
+                return session.Run(query).Select(r =>
                 {
                     var node = r["s"].As<INode>();
                     return new Stop()
@@ -127,8 +142,8 @@ RETURN s").Select(r =>
                     return DirectQuery;
                 case PlanType.OneSwitchNoWalking:
                     return OneSwitchNoWalkingQuery;
-                case PlanType.OneSwitchLessThen500Meters:
-                    return OneSwitchLessThen500MetersQuery;
+                case PlanType.OneSwitchLessThen100Meters:
+                    return OneSwitchLessThen100MetersQuery;
                 default:
                     throw new NotImplementedException();
             }
@@ -167,7 +182,7 @@ RETURN s").Select(r =>
                     plan.Insert(12, "עלה ב");
                     plan.Insert(15, "רד ב");
                     break;
-                case PlanType.OneSwitchLessThen500Meters:
+                case PlanType.OneSwitchLessThen100Meters:
                     plan.Insert(3, "עלה ב");
                     plan.Insert(6, "רד ב");
                     plan.Insert(9, "לך אל");

@@ -4,6 +4,6 @@
     {
         Direct,
         OneSwitchNoWalking,
-        OneSwitchLessThen500Meters
+        OneSwitchLessThen100Meters
     }
 }

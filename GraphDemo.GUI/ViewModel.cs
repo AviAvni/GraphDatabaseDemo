@@ -15,27 +15,83 @@ namespace GraphDemo.GUI
         private void OnPropertyChanged([CallerMemberName]string name = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
-        private string source;
+        private string sourceCity;
 
-        public string Source
+        public string SourceCity
         {
-            get { return source; }
+            get { return sourceCity; }
             set
             {
-                source = value;
-                SourceStops = Service.GetStops(source);
+                sourceCity = value;
+                SourceStops = Service.GetStops(sourceCity, sourceStreet, isSourceTrain);
             }
         }
 
-        private string target;
+        private string sourceStreet;
 
-        public string Target
+        public string SourceStreet
         {
-            get { return target; }
+            get { return sourceStreet; }
             set
             {
-                target = value;
-                TargetStops = Service.GetStops(target);
+                sourceStreet = value;
+                SourceStops = Service.GetStops(sourceCity, sourceStreet, isSourceTrain);
+                OnPropertyChanged();
+            }
+        }
+
+        private bool isSourceTrain;
+
+        public bool IsSourceTrain
+        {
+            get { return isSourceTrain; }
+            set
+            {
+                isSourceTrain = value;
+                if (isSourceTrain)
+                    SourceStreet = null;
+                SourceStops = Service.GetStops(sourceCity, sourceStreet, isSourceTrain);
+                OnPropertyChanged();
+            }
+        }
+
+        private string targetCity;
+
+        public string TargetCity
+        {
+            get { return targetCity; }
+            set
+            {
+                targetCity = value;
+                TargetStops = Service.GetStops(targetCity, targetStreet, isTargetTrain);
+            }
+        }
+
+        private string targetStreet;
+
+        public string TargetStreet
+        {
+            get { return targetStreet; }
+            set
+            {
+                targetStreet = value;
+                TargetStops = Service.GetStops(targetCity, targetStreet, isTargetTrain);
+                OnPropertyChanged();
+            }
+        }
+
+        private bool isTargetTrain;
+
+        public bool IsTargetTrain
+        {
+            get { return isTargetTrain; }
+            set
+            {
+                isTargetTrain = value;
+                if (isTargetTrain)
+                    TargetStreet = null;
+                TargetStops = Service.GetStops(targetCity, targetStreet, isTargetTrain);
+                OnPropertyChanged();
             }
         }
 
@@ -175,7 +231,7 @@ namespace GraphDemo.GUI
             GoogleSigned.AssignAllServices(new GoogleSigned(Environment.GetEnvironmentVariable("GoogleApiKey")));
             Times = Enumerable.Range(0, 24).Select(i => i.ToString("00")).ToArray();
             Zoom = 8;
-            PlanTypes = new[] { PlanType.Direct, PlanType.OneSwitchNoWalking, PlanType.OneSwitchLessThen500Meters };
+            PlanTypes = new[] { PlanType.Direct, PlanType.OneSwitchNoWalking, PlanType.OneSwitchLessThen100Meters };
         }
 
         private async Task UpdatePlanAsync()
