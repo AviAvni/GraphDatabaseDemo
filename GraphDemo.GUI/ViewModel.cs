@@ -265,7 +265,7 @@ namespace GraphDemo.GUI
                 map.Markers.Add(point);
             }
 
-            MapUri = map.ToUri().ToString();
+            MapUri = map.ToUriSigned().ToString();
         }
     }
 }
