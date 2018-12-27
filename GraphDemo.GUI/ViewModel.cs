@@ -211,26 +211,12 @@ namespace GraphDemo.GUI
             }
         }
 
-        private int zoom;
-
-        public int Zoom
-        {
-            get { return zoom; }
-            set { zoom = value; }
-        }
-
-        private const double MinLatitude = -90D;
-        private const double MaxLatitude = 90D;
-        private const double MinLongitude = -180D;
-        private const double MaxLongitude = 180D;
-
         public LatLng CenterGeoCoordinate { get; set; }
 
         public ViewModel()
         {
             GoogleSigned.AssignAllServices(new GoogleSigned(Environment.GetEnvironmentVariable("GoogleApiKey")));
             Times = Enumerable.Range(0, 24).Select(i => i.ToString("00")).ToArray();
-            Zoom = 8;
             PlanTypes = new[] { PlanType.Direct, PlanType.OneSwitchNoWalking, PlanType.OneSwitchLessThen100Meters };
         }
 
@@ -255,7 +241,6 @@ namespace GraphDemo.GUI
                 Language = "he-IL",
                 Center = CenterGeoCoordinate,
                 Size = new MapSize(400, 400),
-                Zoom = Zoom,
                 Path = new Path()
             };
 
